@@ -969,7 +969,7 @@ impl Links {
                         }
                     }
                     Err(err_msg) => {
-                        tracing::debug!("{} to {}", err_msg, target);
+                        tracing::info!("{} to {}", err_msg, target);
                         peer_errors.lock().await.insert(uri_str.clone(), Some(err_msg));
                     }
                 }
@@ -983,7 +983,10 @@ impl Links {
                 tokio::select! {
                     _ = cancel_clone.cancelled() => break,
                     _ = tokio::time::sleep(wait) => {}
-                    _ = retry_notify.notified() => {}
+                    _ = retry_notify.notified() => {
+                        // Reset backoff after the network change
+                        backoff = 0;
+                    }
                 }
             }
         });

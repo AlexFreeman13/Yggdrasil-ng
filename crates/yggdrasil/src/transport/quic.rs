@@ -244,7 +244,7 @@ pub(crate) async fn quic_connect(
         let connection = match tokio::time::timeout(Duration::from_secs(5), connecting).await {
             Ok(Ok(c)) => c,
             Ok(Err(e)) => {
-                last_err = format!("QUIC connection to {} failed: {}", remote_addr, e);
+                last_err = format!("QUIC connection failed: {}", e);
                 if remote_addr.is_ipv6()
                     && !v4_addrs.is_empty()
                     && is_unreachable_error(&last_err)
@@ -257,7 +257,7 @@ pub(crate) async fn quic_connect(
                 continue;
             }
             Err(_) => {
-                last_err = format!("QUIC connection to {} timed out", remote_addr);
+                last_err = "QUIC connection timed out".to_string();
                 continue;
             }
         };
@@ -266,7 +266,7 @@ pub(crate) async fn quic_connect(
         let (send, recv) = match connection.open_bi().await {
             Ok(streams) => streams,
             Err(e) => {
-                last_err = format!("QUIC open stream to {}: {}", remote_addr, e);
+                last_err = format!("QUIC open stream: {}", e);
                 continue;
             }
         };
@@ -283,6 +283,12 @@ pub(crate) async fn quic_connect(
         });
     }
 
+    // Only list the attempted addresses when there was more than one candidate
+    // (multi-record DNS, or the v6 -> v4 fallback above). With a single address
+    // this merely repeats the target that the caller already appends.
+    if tried.len() < 2 {
+        return Err(last_err);
+    }
     Err(format!(
         "{} (tried: {})",
         last_err,
