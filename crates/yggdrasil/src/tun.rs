@@ -34,6 +34,8 @@ pub struct TunAdapter {
     device: Arc<AsyncDevice>,
     /// Interface name assigned by the OS, which may differ from the requested one.
     name: String,
+    /// MTU the interface ended up with, which the OS may have clamped.
+    mtu: u16,
     read_handle: tokio::task::JoinHandle<()>,
     write_handle: tokio::task::JoinHandle<()>,
 }
@@ -151,7 +153,8 @@ impl TunAdapter {
         }
 
         let actual_name = device.name().unwrap_or_else(|_| tun_name.to_string());
-        tracing::info!("TUN device '{}' created with address {} and MTU {}", actual_name, addr, mtu);
+        let actual_mtu = device.mtu().unwrap_or(mtu);
+        tracing::info!("TUN device '{}' created with address {} and MTU {}", actual_name, addr, actual_mtu);
 
         // Install CKR routes if configured
         #[cfg(feature = "ckr")]
@@ -196,6 +199,7 @@ impl TunAdapter {
         Ok(Self {
             device,
             name: actual_name,
+            mtu: actual_mtu,
             read_handle,
             write_handle,
         })
@@ -204,6 +208,11 @@ impl TunAdapter {
     /// Interface name assigned by the OS.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// MTU the interface ended up with.
+    pub fn mtu(&self) -> u16 {
+        self.mtu
     }
 
     /// Tear down the TUN adapter explicitly: abort the I/O tasks, wait for
@@ -216,7 +225,7 @@ impl TunAdapter {
     /// the Wintun adapter isn't closed by then, it gets orphaned in the
     /// device tree and the next startup can't recreate it.
     pub async fn close(self) {
-        let TunAdapter { device, name: _, read_handle, write_handle } = self;
+        let TunAdapter { device, name: _, mtu: _, read_handle, write_handle } = self;
         read_handle.abort();
         write_handle.abort();
         let _ = read_handle.await;
