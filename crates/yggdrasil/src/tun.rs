@@ -78,7 +78,6 @@ impl TunAdapter {
             .map_err(|e| format!("invalid address '{}': {}", ip_str, e))?;
 
         // Create TUN device using tun-rs DeviceBuilder
-        #[allow(unused_mut)]
         let mut builder = tun_rs::DeviceBuilder::new().ipv6(ip, 7u8).mtu(mtu);
 
         // macOS only accepts utunN names and assigns the index itself, so

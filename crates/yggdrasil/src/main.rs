@@ -362,6 +362,7 @@ async fn run_node(
         ).await {
             Ok(tun) => {
                 tracing::info!("TUN adapter started");
+                core.set_tun_name(tun.name());
                 Some(tun)
             }
             Err(e) => {
