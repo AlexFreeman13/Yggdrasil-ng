@@ -425,12 +425,6 @@ async fn run_node(
         }
     }
 
-    core.close_multicast().await;
-    if let Some(admin) = &admin {
-        admin.close();
-    }
-    core.close().await.ok();
-
     // Tear down TUN explicitly so the OS interface is removed before this
     // function returns. Dropping TunAdapter alone is not enough: its tokio
     // tasks each hold an Arc<AsyncDevice>, and dropping a JoinHandle does
@@ -438,10 +432,20 @@ async fn run_node(
     // we'd rely on the runtime drop to abort the tasks, which is too late
     // in Windows service mode (the SCM may kill the process after we report
     // Stopped, leaving an orphaned Wintun adapter).
+    //
+    // This happens before core.close() on purpose: the TUN write loop parks
+    // in rwc.read(), so closing the core first pulls the RWC out from under
+    // it and every clean shutdown logs a spurious "RWC read error".
     #[cfg(feature = "tun")]
     if let Some(t) = tun.take() {
         t.close().await;
     }
+
+    core.close_multicast().await;
+    if let Some(admin) = &admin {
+        admin.close();
+    }
+    core.close().await.ok();
 
     tracing::info!("Goodbye!");
     Ok(())
